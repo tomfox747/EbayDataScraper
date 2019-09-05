@@ -1,6 +1,8 @@
 import urllib3
 from bs4 import BeautifulSoup as soup
 import requests
+from xlrd import open_workbook
+import xlsxwriter
 
 
 class listing:
@@ -15,7 +17,6 @@ def createSubstring(inputString, startPos, subStringLength):
         outputString += inputString[startPos + increment]
         increment += 1
     return outputString
-
 def extractTitle(input):
     output = ""
     increment = len(input) - 2
@@ -29,7 +30,6 @@ def extractTitle(input):
         increment -= 1
     
     return output
-
 def extractPrice(input):
     price = ""
     for i in range(0, len(input)):
@@ -40,45 +40,39 @@ def extractPrice(input):
                 priceIncrementor += 1
             return price
     return price
-
 def priceStringToInt(inputString):
     outputString = inputString.replace(" ","")
     outputString = outputString.replace(",","")
     return outputString
 
+
 urls = []
 productNames = []
 listingsAvg = []
+completionPercentage = 0
+book = open_workbook('ebayProducts.xlsx')
+sheet = book.sheet_by_index(0)
 
-productNames.append("nissan+350z")
-productNames.append("bmw+z4")
-productNames.append("porche+boxter")
-productNames.append("lotus+elise")
-productNames.append("subaru+impreza")
-productNames.append("bmw+m3")
-productNames.append("bmw+m5")
-productNames.append("focus+rs")
-productNames.append("audi+s3")
-productNames.append("range+rover")
+for row in range(sheet.nrows):
+    item = str(sheet.cell(row, 0).value)
+    item = item.replace(" ","+")
+    productNames.append(item)
+
 
 for product in range(len(productNames)):
-    urls.append("https://www.ebay.co.uk/sch/i.html?LH_Complete=1&LH_Sold=0&_from=R40&_sacat=0&_nkw="+ productNames[product] +"&_ipg=100&rt=nc")
+    urls.append("https://www.ebay.co.uk/sch/i.html?LH_Complete=1&LH_Sold=1&_from=R40&_sacat=0&_nkw="+ productNames[product] +"&_ipg=100&rt=nc")
 
-completionPercentage = 0
 
 for url in range(len(urls)):
-    listings = []
-
-    request = requests.get(urls[url])
-
-    htmlString = str(soup(request.content, 'html5lib'))
-    #htmlString = str(request.content)
-
-
+    
     increment = 0
     titles = 0
+    listings = []
+    request = requests.get(urls[url])
+    htmlString = str(soup(request.content, 'html5lib'))
 
     while increment < (len(htmlString) - 10):
+        
         substring = createSubstring(htmlString, increment, 7)
 
         if substring == "lvtitle":
@@ -111,22 +105,41 @@ for url in range(len(urls)):
                         listings[len(listings) - 1].price = price
                         break
                     increment += 1
-
         increment+=1
 
+    
     totalPrice = 0
     for i in range(len(listings)):
         priceFloat = float(priceStringToInt(listings[i].price))
         totalPrice += priceFloat
     
-    listingAvg = listing(productNames[url],str(totalPrice / 100))
+    listingAvg = listing(productNames[url],str(totalPrice / len(listings)))
     listingsAvg.append(listingAvg)
 
     completionPercentage += (100 / len(urls))
-    print(completionPercentage) 
+    print(str(completionPercentage) + "% Complete") 
+
+
+print("")
 
 for i in range(len(listingsAvg)):
+    listingsAvg[i].name = listingsAvg[i].name.replace("+"," ")
     print("Average price of a " + listingsAvg[i].name + " on ebay = £" + listingsAvg[i].price)
+
+
+#Write to spreadsheet
+outputWorkbook = xlsxwriter.Workbook('ebayProducts.xlsx')
+worksheet = outputWorkbook.add_worksheet()
+
+worksheet.write(0,0, "Product name")
+worksheet.write(0,1, "Average Price")
+
+for i in range(0, len(listingsAvg)):
+    worksheet.write(i + 1, 0, listingsAvg[i].name)
+    worksheet.write(i + 1, 1, listingsAvg[i].price)
+
+
+outputWorkbook.close()
 
 print("")
 print("program finished")
